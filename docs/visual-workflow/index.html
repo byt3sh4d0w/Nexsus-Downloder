@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nexus Downloader workflow</title>
+<style>
+:root{--bg:#0f1115;--card:#171a21;--line:#2a2f3a;--tx:#e8eaf0;--mut:#9aa3b2;--ac:#ff9a3c;--ok:#2fd39a}
+@media (prefers-color-scheme:light){:root{--bg:#f5f6f8;--card:#fff;--line:#d8dce3;--tx:#1a1d24;--mut:#5b6472;--ac:#d96a00;--ok:#0a8f66}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.5 "Segoe UI",Inter,Arial,sans-serif}
+main{max-width:980px;margin:0 auto;padding:24px 16px 48px}h1{font-size:1.5rem;margin:.2em 0}h2{font-size:1.1rem;margin:1.6em 0 .6em}
+p.sub{color:var(--mut);margin:0 0 1em}
+.track{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin:12px 0}
+.dot{height:8px;border-radius:4px;background:var(--line);transition:background .2s}.dot.on{background:var(--ac)}.dot.done{background:var(--ok)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;min-height:170px}
+.card h3{margin:0 0 6px;font-size:1.05rem}.card .where{font:12px ui-monospace,Consolas,monospace;color:var(--ac)}
+.card p{margin:.5em 0;color:var(--mut)}.sec{border-left:3px solid var(--ok);padding-left:10px;margin-top:10px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+button{font:inherit;background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:10px;padding:8px 14px;cursor:pointer}
+button:hover,button:focus-visible{border-color:var(--ac);outline:none}button[aria-pressed=true]{border-color:var(--ac);color:var(--ac)}
+.zones{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.zone{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}.zone b{display:block}
+.zone small{color:var(--mut)}.zone.open{border-color:var(--ac)}.zone .more{display:none;margin-top:8px;color:var(--mut);font-size:.92rem}.zone.open .more{display:block}
+footer{color:var(--mut);font-size:.85rem;margin-top:28px}
+@media (prefers-reduced-motion:reduce){.dot{transition:none}}
+</style></head><body><main>
+<h1>Nexus Downloader v10: download lifecycle</h1>
+<p class="sub">Step through what the current source does for one HTTP/HTTPS download. Every step names the file that implements it.</p>
+<div class="track" id="track" role="progressbar" aria-valuemin="1" aria-valuemax="8" aria-valuenow="1"></div>
+<section class="card" aria-live="polite"><div class="where" id="where"></div><h3 id="title"></h3><p id="body"></p><div class="sec" id="sec"></div></section>
+<div class="row"><button id="prev">Previous</button><button id="next">Next</button><button id="play" aria-pressed="false">Play</button></div>
+
+<h2>Trust boundaries (click a zone)</h2>
+<div class="zones" id="zones"></div>
+<footer>Static page, no network requests, no dependencies. Describes the current source; it is not a security guarantee. See SECURITY_AUDIT.md.</footer>
+</main>
+<script>
+const steps=[
+["gui/new_download.py · core/security.py","1. URL entry and validation","The URL is checked locally before anything is sent: only http/https, a hostname must exist, no whitespace, no embedded user:password, at most 8192 characters.","No network request is made by this step."],
+["gui/new_download.py","2. File-name probe","A HEAD request (or a 1-byte ranged GET) asks the server for Content-Disposition so the dialog can suggest the real file name. It runs on a background thread.","TLS is verified; an HTTPS link is never followed onto http:// (request hook)."],
+["core/security.py · gui/main_window.py","3. File-name sanitising and conflicts","safe_filename() replaces path separators and Windows-invalid characters, strips bidi override characters and prefixes reserved device names. If the destination exists, a dialog offers rename, overwrite or cancel.","The name is flattened to one path component, so it cannot leave the chosen folder."],
+["database/db.py","4. Record saved","A row is stored in the SQLite file downloads.db with status QUEUED. Statements use bound parameters.","The URL is stored as typed (query tokens included)."],
+["core/downloader.py","5. Probe","The downloader asks for size, byte-range support, ETag/Last-Modified and Content-MD5. Redirects are limited to 10 and an HTTPS to HTTP downgrade is refused.","Selected adapter IPs are used as the local source address; no silent fallback to another route."],
+["core/downloader.py · core/scheduler.py","6. Ranges and workers","If ranges are supported and the file is larger than 512 KiB, it is cut into 0.5 to 16 MiB ranges. Workers claim ranges from one shared queue, so faster adapters finish more of them.","Every 206 response is checked against the requested Content-Range; a mismatch falls back to one sequential stream."],
+["core/downloader.py","7. Writing and merge","Ranges go to numbered files in a .parts folder, a layout file records the plan, and progress is reported to the GUI. Resume reuses valid parts only when layout and remote version match.","Nothing is written under the final name yet."],
+["core/downloader.py","8. Verify and promote","The merged file is size-checked, Content-MD5 is verified when the server sent one, and only then os.replace() moves it to the final name and the row becomes COMPLETED.","If the server sent no hash, only the size check applies."]];
+let i=0,timer=null;const $=id=>document.getElementById(id);
+const track=$("track");steps.forEach(()=>{const d=document.createElement("div");d.className="dot";track.appendChild(d)});
+function show(n){i=(n+steps.length)%steps.length;const s=steps[i];$("where").textContent=s[0];$("title").textContent=s[1];$("body").textContent=s[2];$("sec").textContent=s[3];
+ [...track.children].forEach((d,k)=>d.className="dot"+(k<i?" done":k===i?" on":""));track.setAttribute("aria-valuenow",i+1)}
+$("prev").onclick=()=>show(i-1);$("next").onclick=()=>show(i+1);
+$("play").onclick=e=>{const b=e.currentTarget;if(timer){clearInterval(timer);timer=null;b.setAttribute("aria-pressed","false");b.textContent="Play"}else{timer=setInterval(()=>show(i+1),3500);b.setAttribute("aria-pressed","true");b.textContent="Pause"}};
+const zones=[["Untrusted: HTTP/HTTPS servers","Headers, redirects, file names, Content-Range and body bytes all come from the server.","Treated as data: validated before use. TLS certificates are verified."],
+["Untrusted: torrent peers and trackers","Magnet links, .torrent files and peer data.","Handled by libtorrent. Piece hashes are verified, but a verified torrent is not a safe file."],
+["Nexus process","Runs with the normal user's privileges. No administrator request.","Validation, engines, GUI."],
+["Local files","Download folder, ~/NexusDownloader (settings.json, downloads.db, torrent cache).","Plain files owned by the user, default permissions."],
+["Operating system","Open file / open folder run only on a user click. Optional Defender scan on Windows.","Downloaded files are never executed automatically."]];
+zones.forEach(z=>{const d=document.createElement("div");d.className="zone";d.tabIndex=0;d.setAttribute("role","button");d.innerHTML="<b></b><small></small><div class='more'></div>";
+ d.children[0].textContent=z[0];d.children[1].textContent=z[1];d.children[2].textContent=z[2];
+ const t=()=>d.classList.toggle("open");d.onclick=t;d.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();t()}};$("zones").appendChild(d)});
+show(0);
+</script></body></html>

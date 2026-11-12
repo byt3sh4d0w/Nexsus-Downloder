@@ -1,0 +1,34 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Do not paste passwords, tokens, signed/private URLs or personal paths. Security issues: see SECURITY.md, not here."
+  - type: input
+    id: version
+    attributes: { label: Nexus Downloader version, description: "See core/version.py or the commit hash", placeholder: "10" }
+    validations: { required: true }
+  - type: input
+    id: os
+    attributes: { label: Operating system, placeholder: "Windows 11 23H2 / Ubuntu 24.04" }
+    validations: { required: true }
+  - type: input
+    id: python
+    attributes: { label: Python version, placeholder: "3.13.x (python --version)" }
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes: { label: Steps to reproduce, placeholder: "1. ...\n2. ..." }
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes: { label: Expected behavior }
+    validations: { required: true }
+  - type: textarea
+    id: actual
+    attributes: { label: Actual behavior }
+    validations: { required: true }
+  - type: textarea
+    id: logs
+    attributes: { label: Sanitised logs / error text, render: text, description: "Remove tokens, query strings of signed URLs and personal paths." }

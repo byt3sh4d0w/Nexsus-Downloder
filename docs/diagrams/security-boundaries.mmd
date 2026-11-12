@@ -1,0 +1,21 @@
+flowchart LR
+  subgraph UNTRUSTED["Untrusted"]
+    SRV[HTTP/HTTPS servers<br/>headers, redirects, bytes]
+    PEERS[Torrent peers, trackers, DHT<br/>.torrent and magnet content]
+  end
+  subgraph APP["Nexus process (user privileges)"]
+    VAL[Validation<br/>URL, file name, Content-Range]
+    ENG[Download + torrent engines]
+    UI[GUI]
+  end
+  subgraph LOCAL["Local machine (user-owned)"]
+    DLF[Download folder]
+    APPD["~/NexusDownloader<br/>settings.json, downloads.db, torrent cache"]
+    OS[OS shell: open file/folder,<br/>optional Defender scan]
+  end
+  SRV -- TLS verified --> VAL --> ENG
+  PEERS -- libtorrent --> ENG
+  ENG --> DLF
+  UI --> APPD
+  UI -- user action only --> OS
+  DLF -. never auto-executed .-> OS

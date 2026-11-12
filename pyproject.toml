@@ -1,0 +1,11 @@
+# Tooling config only: Nexus is run from source (python main.py), not installed as a package.
+[tool.ruff]
+line-length = 200            # existing code uses long lines; formatting is not enforced
+
+[tool.ruff.lint]
+select = ["E9", "F63", "F7", "F82"]   # syntax errors, bad comparisons, undefined names
+
+[tool.ruff.lint.per-file-ignores]
+# gui/theme.py publishes its colour tokens (BG, TEXT, ACCENT, ...) with globals().update() in apply_palette(),
+# which static analysis cannot see.
+"gui/theme.py" = ["F821"]

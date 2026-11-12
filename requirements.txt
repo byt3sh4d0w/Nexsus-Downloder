@@ -1,0 +1,13 @@
+# Core GUI framework
+PySide6>=6.5
+
+# HTTP client (multi-connection downloads, redirects, TLS verification)
+httpx>=0.25
+
+# Network adapter enumeration / traffic stats (core/network_monitor.py)
+psutil>=5.9
+
+# BitTorrent engine (core/torrent.py). Windows wheels exist for Python 3.10-3.13.
+# If it cannot be installed (e.g. Python 3.14), run_nexus.bat still starts the app and
+# the Torrents tab reports that the engine is unavailable.
+libtorrent>=2.0.9
